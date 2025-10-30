@@ -7,14 +7,17 @@ from ..schemas import ExpirationParamCreate
 
 router = APIRouter(prefix="/expirations", tags=["Vencimientos"])
 
+# Crear una expiración
 @router.post("", response_model=ExpirationParam)
 def create_exp(payload: ExpirationParamCreate, session: Session = Depends(get_session)):
     e = ExpirationParam(**payload.model_dump()); session.add(e); session.commit(); session.refresh(e); return e
 
+# Listado
 @router.get("", response_model=List[ExpirationParam])
 def list_exp(session: Session = Depends(get_session)):
     return list(session.exec(select(ExpirationParam)).all())
 
+# Actualizar
 @router.put("/{exp_id}", response_model=ExpirationParam)
 def update_exp(exp_id: int, payload: ExpirationParamCreate, session: Session = Depends(get_session)):
     e = session.get(ExpirationParam, exp_id)
@@ -22,6 +25,7 @@ def update_exp(exp_id: int, payload: ExpirationParamCreate, session: Session = D
     for k, v in payload.model_dump().items(): setattr(e, k, v)
     session.add(e); session.commit(); session.refresh(e); return e
 
+# Eliminar
 @router.delete("/{exp_id}")
 def delete_exp(exp_id: int, session: Session = Depends(get_session)):
     e = session.get(ExpirationParam, exp_id)
