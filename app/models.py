@@ -15,11 +15,17 @@ class Client(SQLModel, table=True):
 
 class Rule(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    limite_inferior: Optional[int] = None      # Mínimo
-    limite_superior: Optional[int] = None      # Máximo
-    equivalencia_monto: int                    # Cuántos puntos equivale x guaranies
+    limite_inferior: Optional[int] = None
+    limite_superior: Optional[int] = None
+    equivalencia_monto: int                # Cuántos puntos equivale x guaranies
 
 class Expiration(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    fecha_inicio_validez: Optional[date] = None
+    fecha_fin_validez: Optional[date] = None
+    dias_duracion: Optional[int] = None
+
+class ExpirationParam(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     fecha_inicio_validez: Optional[date] = None
     fecha_fin_validez: Optional[date] = None
