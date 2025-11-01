@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from .db import init_db
 from .routers import clients, rules, expirations,concepts
 
-app = FastAPI(title="Galletit Cafetería")
+app = FastAPI(title="Galletita Cafetería")
 
 @app.on_event("startup")
 def startup():
