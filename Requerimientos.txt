@@ -1,12 +1,6 @@
--- Activar entorno virtual
-.venv\Scripts\Activate.ps1
-
--- Instalar librerías necesarias
-pip install passlib[bcrypt]
-pip install fastapi uvicorn sqlmodel python-dotenv
-
--- Ejecutar
-uvicorn app.main:app --reload
-
--- Ir a la página
-http://127.0.0.1:8000/docs
+fastapi==0.103.2
+uvicorn==0.23.2
+sqlmodel==0.0.14
+pydantic==1.10.13
+python-dotenv==1.0.1
+passlib[bcrypt]==1.7.4
