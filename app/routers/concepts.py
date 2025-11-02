@@ -9,7 +9,7 @@ router = APIRouter(prefix="/concepts", tags=["Conceptos"])
 
 @router.post("", response_model=PointConcept)
 def create_concept(payload: ConceptCreate, session: Session = Depends(get_session)):
-    c = PointConcept(**payload.model_dump()); session.add(c); session.commit(); session.refresh(c); return c
+    c = PointConcept(**payload.dict()); session.add(c); session.commit(); session.refresh(c); return c
 
 @router.get("", response_model=List[PointConcept])
 def list_concepts(session: Session = Depends(get_session)):

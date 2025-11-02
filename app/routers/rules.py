@@ -10,7 +10,7 @@ router = APIRouter(prefix="/rules", tags=["Reglas"])
 # Crear reglas
 @router.post("", response_model=Rule)
 def create_rule(payload: RuleCreate, session: Session = Depends(get_session)):
-    r = Rule(**payload.model_dump()); session.add(r); session.commit(); session.refresh(r); return r
+    r = Rule(**payload.dict()); session.add(r); session.commit(); session.refresh(r); return r
 
 # Listar Reglas
 @router.get("", response_model=List[Rule])

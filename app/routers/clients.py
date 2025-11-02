@@ -10,7 +10,7 @@ router = APIRouter(prefix="/clients", tags=["Clientes"])
 # Crear cliente
 @router.post("", response_model=Client)
 def create_client(payload: ClientCreate, session: Session = Depends(get_session)):
-    c = Client(**payload.model_dump())
+    c = Client(**payload.dict())
     session.add(c); session.commit(); session.refresh(c)
     return c
 

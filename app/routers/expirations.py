@@ -10,7 +10,7 @@ router = APIRouter(prefix="/expirations", tags=["Vencimientos"])
 # Crear una expiración
 @router.post("", response_model=ExpirationParam)
 def create_exp(payload: ExpirationParamCreate, session: Session = Depends(get_session)):
-    e = ExpirationParam(**payload.model_dump()); session.add(e); session.commit(); session.refresh(e); return e
+    e = ExpirationParam(**payload.dict()); session.add(e); session.commit(); session.refresh(e); return e
 
 # Listado
 @router.get("", response_model=List[ExpirationParam])
