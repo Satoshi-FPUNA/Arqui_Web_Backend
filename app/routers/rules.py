@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from sqlmodel import Session, select
 from ..db import get_session
@@ -8,9 +8,38 @@ from ..schemas import RuleCreate
 router = APIRouter(prefix="/rules", tags=["Reglas"])
 
 # Crear reglas
-@router.post("", response_model=Rule)
+@router.post("", response_model=Rule, status_code=status.HTTP_201_CREATED)
 def create_rule(payload: RuleCreate, session: Session = Depends(get_session)):
-    r = Rule(**payload.dict()); session.add(r); session.commit(); session.refresh(r); return r
+    # Validar coherencia de límites
+    if payload.limite_superior is not None and payload.limite_superior < payload.limite_inferior:
+        raise HTTPException(
+            status_code=400,
+            detail="El límite superior no puede ser menor que el límite inferior."
+        )
+
+    # Validar que no se solape con otras reglas existentes
+    overlaps = session.exec(
+        select(Rule)
+        .where(
+            Rule.limite_superior >= payload.limite_inferior,  # se superpone por abajo
+        )
+        .where(
+            (Rule.limite_inferior <= payload.limite_superior) | (Rule.limite_superior == None)
+        )
+    ).all()
+
+    if overlaps:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una regla que se solapa con este rango de montos."
+        )
+
+    # Crear la nueva regla
+    regla = Rule(**payload.dict())
+    session.add(regla)
+    session.commit()
+    session.refresh(regla)
+    return regla
 
 # Listar Reglas
 @router.get("", response_model=List[Rule])
