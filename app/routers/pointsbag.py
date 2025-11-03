@@ -1,237 +1,117 @@
-from fastapi import APIRouter, HTTPException
-from sqlmodel import Session, select
-from app.db import engine
-from app.models import PointsBag, Client, Rule, Expiration, PointConcept
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from datetime import date, timedelta
+from typing import List
+from sqlmodel import Session, select
+from ..db import get_session
+from ..models import PointsBag, Client, Rule, ExpirationParam
+from ..schemas import AssignPointsRequest
+from ..core.mailer import send_points_assigned_email, PointsAssignedEmail
 
-router = APIRouter(prefix="/pointsbag", tags=["Bolsa de Puntos"])
+router = APIRouter(prefix="/pointsbag", tags=["Bolsa de puntos"])
 
-# 🔹 Listar todas las bolsas
-@router.get("/")
-def list_points_bags():
-    with Session(engine) as session:
-        bolsas = session.exec(select(PointsBag)).all()
-        return bolsas
+def _get_expiration_settings(session: Session) -> ExpirationParam:
+    exp = session.exec(select(ExpirationParam).order_by(ExpirationParam.id.desc())).first()
+    if not exp:
+        raise HTTPException(400, "No hay parámetros de vencimiento configurados.")
+    if not exp.fecha_inicio_validez and not exp.dias_duracion and not exp.fecha_fin_validez:
+        raise HTTPException(400, "El parámetro de vencimiento está incompleto.")
+    return exp
 
-# 🔹 Crear una nueva bolsa (asignar puntos)
-@router.post("/")
-def create_points_bag(cliente_id: int, monto_operacion: int):
-    today = date.today()
-    with Session(engine) as session:
-        # 🔹 Verificar si el cliente existe
-        cliente = session.get(Client, cliente_id)
-        if not cliente:
-            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+def _calc_expiry(exp: ExpirationParam, asignacion: date) -> date:
+    """
+    Regla: si hay dias_duracion => fin = inicio + dias; 
+           si no, usa fecha_fin_validez si está; 
+           fallback: 30 días.
+    """
+    if exp.dias_duracion and exp.fecha_inicio_validez:
+        return exp.fecha_inicio_validez + timedelta(days=exp.dias_duracion)
+    if exp.dias_duracion:
+        return asignacion + timedelta(days=exp.dias_duracion)
+    if exp.fecha_fin_validez:
+        return exp.fecha_fin_validez
+    return asignacion + timedelta(days=30)
 
-        # 🔹 Buscar la regla aplicable según el monto
-        regla = session.exec(
-            select(Rule)
-            .where(Rule.limite_inferior <= monto_operacion)
-            .where((Rule.limite_superior == None) | (Rule.limite_superior >= monto_operacion))
-        ).first()
+def _puntos_por_monto(session: Session, monto: int) -> int:
+    """
+    Usa la primera regla que coincida con el rango; si ninguna tiene rango, usa equivalencia general.
+    equivalencia_monto = cuántos puntos por cada X guaraníes.
+    """
+    reglas: List[Rule] = list(session.exec(select(Rule)))
+    if not reglas:
+        raise HTTPException(400, "No hay reglas de puntos configuradas.")
 
-        if not regla:
-            raise HTTPException(status_code=400, detail="No hay una regla aplicable para este monto.")
+    # prioriza las que tienen rango
+    for r in reglas:
+        if r.limite_inferior is not None and r.limite_superior is not None:
+            if r.limite_inferior <= monto <= r.limite_superior:
+                return monto // r.equivalencia_monto
 
-        # Calcular puntos según la equivalencia de la regla
-        puntos_asignados = monto_operacion // regla.equivalencia_monto
+    # si no matcheó rangos, usa la primera equivalencia general
+    regla_general = next((r for r in reglas if r.limite_inferior is None and r.limite_superior is None), None)
+    if not regla_general:
+        # o en última instancia usa la primera regla
+        regla_general = reglas[0]
+    return monto // regla_general.equivalencia_monto
 
-        # 🔹 Buscar la duración vigente en la tabla Expiration
-        expiracion = session.exec(
-            select(Expiration)
-            .where(Expiration.fecha_inicio_validez <= today)
-            .where(Expiration.fecha_fin_validez >= today)
-        ).first()
+@router.post("/assign", response_model=dict)
+async def assign_points(
+    payload: AssignPointsRequest,
+    background: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    # valida cliente
+    cliente = session.get(Client, payload.cliente_id)
+    if not cliente:
+        raise HTTPException(404, "Cliente no encontrado")
 
-        # Si hay configuración, usarla; si no, aplicar un valor por defecto (30 días)
-        dias_duracion = expiracion.dias_duracion if expiracion else 30
-        fecha_asignacion = today
-        fecha_caducidad = fecha_asignacion + timedelta(days=dias_duracion)
+    # calcula puntos y vencimiento
+    puntos = _puntos_por_monto(session, payload.monto_operacion)
+    hoy = date.today()
+    exp = _get_expiration_settings(session)
+    fecha_cad = _calc_expiry(exp, hoy)
 
-        # 🔹 Crear la nueva bolsa
-        nueva_bolsa = PointsBag(
-            cliente_id=cliente_id,
-            fecha_asignacion=fecha_asignacion,
-            fecha_caducidad=fecha_caducidad,
-            puntos_asignados=puntos_asignados,
-            puntos_utilizados=0,
-            saldo_puntos=puntos_asignados,
-            monto_operacion=monto_operacion
+    # crea bolsa
+    bag = PointsBag(
+        cliente_id=payload.cliente_id,
+        fecha_asignacion=hoy,
+        fecha_caducidad=fecha_cad,
+        puntos_asignados=puntos,
+        puntos_utilizados=0,
+        saldo_puntos=puntos,
+        monto_operacion=payload.monto_operacion,
+    )
+    session.add(bag)
+    session.commit()
+    session.refresh(bag)
+
+    # calcula saldo total actual del cliente (opcional, sumando bolsas vigentes)
+    saldo_total = session.exec(
+        select(PointsBag).where(PointsBag.cliente_id == payload.cliente_id)
+    )
+    saldo_sum = sum(b.saldo_puntos for b in saldo_total)
+
+    # dispara email en background (no bloquea)
+    if cliente.email:
+        background.add_task(
+            send_points_assigned_email,
+            PointsAssignedEmail(
+                to=cliente.email,
+                nombre=f"{cliente.nombre} {cliente.apellido}".strip(),
+                puntos_asignados=puntos,
+                saldo_puntos=saldo_sum,
+                fecha_caducidad=str(fecha_cad),
+                monto_operacion=payload.monto_operacion,
+            ),
         )
 
-        session.add(nueva_bolsa)
-        session.commit()
-        session.refresh(nueva_bolsa)
+    return {
+        "ok": True,
+        "cliente_id": payload.cliente_id,
+        "puntos_asignados": puntos,
+        "fecha_caducidad": str(fecha_cad),
+        "saldo_total": saldo_sum,
+    }
 
-        return {
-            "mensaje": "Bolsa creada correctamente",
-            "cliente_id": cliente_id,
-            "monto_operacion": monto_operacion,
-            "puntos_asignados": puntos_asignados,
-            "fecha_caducidad": fecha_caducidad,
-            "dias_duracion": dias_duracion,
-            "regla_aplicada": {
-                "id": regla.id,
-                "limite_inferior": regla.limite_inferior,
-                "limite_superior": regla.limite_superior,
-                "equivalencia_monto": regla.equivalencia_monto
-            }
-        }
-
-# 🔹 Ver bolsas de un cliente específico
-@router.get("/cliente/{cliente_id}")
-def get_all_bags_with_status(cliente_id: int):
-    today = date.today()
-    with Session(engine) as session:
-        bolsas = session.exec(
-            select(PointsBag).where(PointsBag.cliente_id == cliente_id)
-        ).all()
-
-        if not bolsas:
-            raise HTTPException(status_code=404, detail="El cliente no tiene bolsas registradas")
-
-        total_vigentes = 0
-        bolsas_respuesta = []
-
-        for b in bolsas:
-            estado = "vigente" if b.fecha_caducidad >= today else "vencida"
-
-            if estado == "vigente":
-                total_vigentes += b.saldo_puntos
-
-            bolsas_respuesta.append({
-                "id": b.id,
-                "fecha_asignacion": b.fecha_asignacion,
-                "fecha_caducidad": b.fecha_caducidad,
-                "puntos_asignados": b.puntos_asignados,
-                "puntos_utilizados": b.puntos_utilizados,
-                "saldo_puntos": b.saldo_puntos,
-                "monto_operacion": b.monto_operacion,
-                "estado": estado
-            })
-
-        return {
-            "cliente_id": cliente_id,
-            "total_puntos_vigentes": total_vigentes,
-            "bolsas": bolsas_respuesta
-        }
-
-# 🔹 Actualizar una bolsa (por ejemplo, si se usan puntos)
-@router.put("/{bag_id}")
-def update_points_bag(bag_id: int, puntos_usados: int):
-    with Session(engine) as session:
-        bolsa = session.get(PointsBag, bag_id)
-        if not bolsa:
-            raise HTTPException(status_code=404, detail="Bolsa no encontrada")
-
-        if bolsa.fecha_caducidad < date.today():
-            raise HTTPException(status_code=400, detail="Esta bolsa está vencida y no puede usarse.")
-
-        if bolsa.saldo_puntos < puntos_usados:
-            raise HTTPException(status_code=400, detail="Saldo insuficiente")
-
-        bolsa.puntos_utilizados += puntos_usados
-        bolsa.saldo_puntos -= puntos_usados
-
-        session.add(bolsa)
-        session.commit()
-        session.refresh(bolsa)
-        return bolsa
-
-# 🔹 Usar puntos (canje FIFO + registro de canje)
-@router.put("/cliente/{cliente_id}/usar")
-def use_points(cliente_id: int, concepto_id: int):
-    from datetime import date
-    with Session(engine) as session:
-        # 🔹 Buscar el concepto del canje (ej: "Café gratis")
-        from app.models import PointConcept, PointsUseHeader, PointsUseDetail
-        concepto = session.get(PointConcept, concepto_id)
-        if not concepto:
-            raise HTTPException(status_code=404, detail="Concepto no encontrado")
-
-        # 🔹 Tomar automáticamente los puntos requeridos desde el concepto
-        puntos_a_usar = concepto.puntos_requeridos
-        puntos_restantes = puntos_a_usar
-        movimientos = []
-
-        # 🔹 Buscar bolsas vigentes con saldo
-        bolsas = session.exec(
-            select(PointsBag)
-            .where(PointsBag.cliente_id == cliente_id)
-            .where(PointsBag.fecha_caducidad >= date.today())
-            .where(PointsBag.saldo_puntos > 0)
-            .order_by(PointsBag.fecha_caducidad)
-        ).all()
-
-        if not bolsas:
-            raise HTTPException(status_code=404, detail="El cliente no tiene puntos vigentes")
-
-        # 🔹 Descontar puntos de las bolsas (FIFO)
-        for bolsa in bolsas:
-            if puntos_restantes <= 0:
-                break
-
-            puntos_a_descontar = min(bolsa.saldo_puntos, puntos_restantes)
-            bolsa.saldo_puntos -= puntos_a_descontar
-            bolsa.puntos_utilizados += puntos_a_descontar
-
-            movimientos.append({
-                "bolsa_id": bolsa.id,
-                "puntos_usados": puntos_a_descontar,
-                "fecha_caducidad": bolsa.fecha_caducidad
-            })
-
-            puntos_restantes -= puntos_a_descontar
-            session.add(bolsa)
-
-        # 🔹 Si no alcanza el saldo, cancelar operación
-        if puntos_restantes > 0:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Saldo insuficiente. Faltan {puntos_restantes} puntos para completar el canje."
-            )
-
-        # 🔹 Crear cabecera del canje
-        cabecera = PointsUseHeader(
-            cliente_id=cliente_id,
-            puntaje_utilizado=puntos_a_usar,
-            fecha=date.today(),
-            concepto_id=concepto_id
-        )
-        session.add(cabecera)
-        session.commit()
-        session.refresh(cabecera)
-
-        # 🔹 Crear detalles del canje (una fila por cada bolsa usada)
-        for mov in movimientos:
-            detalle = PointsUseDetail(
-                cabecera_id=cabecera.id,
-                puntaje_utilizado=mov["puntos_usados"],
-                bolsa_id=mov["bolsa_id"]
-            )
-            session.add(detalle)
-
-        session.commit()
-
-        return {
-            "cliente_id": cliente_id,
-            "concepto": concepto.descripcion,
-            "puntos_usados": puntos_a_usar,
-            "detalle_movimiento": movimientos,
-            "registro": {
-                "cabecera_id": cabecera.id,
-                "fecha": cabecera.fecha
-            }
-        }
-
-
-# 🔹 Eliminar una bolsa (opcional)
-@router.delete("/{bag_id}")
-def delete_points_bag(bag_id: int):
-    with Session(engine) as session:
-        bolsa = session.get(PointsBag, bag_id)
-        if not bolsa:
-            raise HTTPException(status_code=404, detail="Bolsa no encontrada")
-        session.delete(bolsa)
-        session.commit()
-        return {"ok": True, "mensaje": "Bolsa eliminada correctamente"}
+@router.get("", response_model=List[PointsBag])
+def list_bags(session: Session = Depends(get_session)):
+    return list(session.exec(select(PointsBag)).all())

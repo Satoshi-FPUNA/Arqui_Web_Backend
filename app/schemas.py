@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
-from datetime import date
-from typing import Optional
+from datetime import date, timedelta
+from typing import Optional, List
 
 # 🔹 CLIENTES
 class ClientCreate(BaseModel):
@@ -26,7 +26,18 @@ class RuleCreate(BaseModel):
 
 
 # 🔹 VENCIMIENTOS
-class ExpirationCreate(BaseModel):
+class ExpirationParamCreate(BaseModel):
+    fecha_inicio_validez: date
+    dias_duracion: int
+
+
+class ExpirationParamUpdate(BaseModel):
+    fecha_inicio_validez: Optional[date] = None
+    dias_duracion: Optional[int] = None
+
+
+class ExpirationParamRead(BaseModel):
+    id: int
     fecha_inicio_validez: date
     fecha_fin_validez: date
     dias_duracion: int

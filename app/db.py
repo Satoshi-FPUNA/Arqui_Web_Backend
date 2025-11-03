@@ -11,6 +11,7 @@ connect_args = {"check_same_thread": False} if DB_URL.startswith("sqlite") else 
 
 engine = create_engine(DB_URL, echo=False, connect_args=connect_args)
 
+engine = engine  # Exporta el engine para otros módulos
 # Función para crear las tablas
 def init_db():
     from . import models  # asegura que las clases estén cargadas
