@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from datetime import date, timedelta
-from typing import List
+from typing import List, Optional
 from sqlmodel import Session, select
 from ..db import get_session
 from ..models import PointsBag, Client, Rule, ExpirationParam
