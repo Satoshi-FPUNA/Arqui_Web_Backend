@@ -65,8 +65,15 @@ class PointsUseHeaderRead(BaseModel):
     puntaje_utilizado: int
     fecha: date
 
-
 # CANJE DE PUNTOS
 class UsePointsRequest(BaseModel):
     cliente_id: int
     concepto_id: int
+
+# ASIGNACIÓN DE PUNTOS
+class AssignPointsResponse(BaseModel):
+    ok: bool
+    cliente_id: int
+    puntos_asignados: int
+    fecha_caducidad: date
+    saldo_total: int

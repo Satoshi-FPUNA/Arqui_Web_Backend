@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from datetime import date, timedelta
 from typing import List
 from sqlmodel import Session, select
@@ -6,30 +6,41 @@ from ..db import get_session
 from ..models import PointsBag, Client, Rule, ExpirationParam
 from ..schemas import AssignPointsRequest
 from ..core.mailer import send_points_assigned_email, PointsAssignedEmail
+from ..schemas import AssignPointsResponse
 
 router = APIRouter(prefix="/pointsbag", tags=["Bolsa de puntos"])
 
+# Obtener automáticamente el parámetro de vencimiento que está activo hoy
 def _get_expiration_settings(session: Session) -> ExpirationParam:
-    exp = session.exec(select(ExpirationParam).order_by(ExpirationParam.id.desc())).first()
+    hoy = date.today()
+    stmt = (
+        select(ExpirationParam)
+        .where(ExpirationParam.fecha_inicio_validez <= hoy)
+        .where(
+            (ExpirationParam.fecha_fin_validez.is_(None)) |
+            (ExpirationParam.fecha_fin_validez >= hoy)
+        )
+        .order_by(ExpirationParam.fecha_inicio_validez.desc(), ExpirationParam.id.desc())
+        .limit(1)
+    )
+    exp = session.exec(stmt).first()
+    if not exp:
+        exp = session.exec(select(ExpirationParam).order_by(ExpirationParam.id.desc()).limit(1)).first()
     if not exp:
         raise HTTPException(400, "No hay parámetros de vencimiento configurados.")
-    if not exp.fecha_inicio_validez and not exp.dias_duracion and not exp.fecha_fin_validez:
+    if not (exp.dias_duracion or exp.fecha_fin_validez):
         raise HTTPException(400, "El parámetro de vencimiento está incompleto.")
     return exp
 
+
+# Siempre x días desde la asignación
 def _calc_expiry(exp: ExpirationParam, asignacion: date) -> date:
-    """
-    Regla: si hay dias_duracion => fin = inicio + dias; 
-           si no, usa fecha_fin_validez si está; 
-           fallback: 30 días.
-    """
-    if exp.dias_duracion and exp.fecha_inicio_validez:
-        return exp.fecha_inicio_validez + timedelta(days=exp.dias_duracion)
-    if exp.dias_duracion:
+    if exp.dias_duracion and exp.dias_duracion > 0:
         return asignacion + timedelta(days=exp.dias_duracion)
     if exp.fecha_fin_validez:
         return exp.fecha_fin_validez
     return asignacion + timedelta(days=30)
+
 
 def _puntos_por_monto(session: Session, monto: int) -> int:
     """
@@ -53,7 +64,8 @@ def _puntos_por_monto(session: Session, monto: int) -> int:
         regla_general = reglas[0]
     return monto // regla_general.equivalencia_monto
 
-@router.post("/assign", response_model=dict)
+# Asigna los puntos y crea la bolsa
+@router.post("/assign", response_model=AssignPointsResponse)
 async def assign_points(
     payload: AssignPointsRequest,
     background: BackgroundTasks,
@@ -84,13 +96,17 @@ async def assign_points(
     session.commit()
     session.refresh(bag)
 
-    # calcula saldo total actual del cliente (opcional, sumando bolsas vigentes)
-    saldo_total = session.exec(
-        select(PointsBag).where(PointsBag.cliente_id == payload.cliente_id)
-    )
-    saldo_sum = sum(b.saldo_puntos for b in saldo_total)
+    # calcula saldo total actual del cliente
+    hoy = date.today()
+    vigentes = session.exec(
+        select(PointsBag)
+        .where(PointsBag.cliente_id == payload.cliente_id)
+        .where(PointsBag.fecha_caducidad >= hoy)
+        .where(PointsBag.saldo_puntos > 0)
+    ).all()
+    saldo_sum = sum(b.saldo_puntos for b in vigentes)
 
-    # dispara email en background (no bloquea)
+    # dispara email en background
     if cliente.email:
         background.add_task(
             send_points_assigned_email,
@@ -112,6 +128,20 @@ async def assign_points(
         "saldo_total": saldo_sum,
     }
 
+# listar las bolsas de puntos de cada cliente
 @router.get("", response_model=List[PointsBag])
-def list_bags(session: Session = Depends(get_session)):
-    return list(session.exec(select(PointsBag)).all())
+def list_bags(
+    cliente_id: Optional[int] = None,
+    solo_vigentes: bool = False,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+):
+    stmt = select(PointsBag)
+    if cliente_id is not None:
+        stmt = stmt.where(PointsBag.cliente_id == cliente_id)
+    if solo_vigentes:
+        hoy = date.today()
+        stmt = stmt.where(PointsBag.fecha_caducidad >= hoy).where(PointsBag.saldo_puntos > 0)
+    stmt = stmt.order_by(PointsBag.id.desc()).limit(limit).offset(offset)
+    return session.exec(stmt).all()

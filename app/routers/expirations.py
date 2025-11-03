@@ -8,9 +8,11 @@ from ..schemas import ExpirationParamCreate, ExpirationParamRead, ExpirationPara
 
 router = APIRouter(prefix="/expirations", tags=["Vencimientos"])
 
+# Calcula el vencimiento sumandole al inicio los días
 def _calc_fin(inicio, dias):
     return inicio + timedelta(days=dias)
 
+# Crear una expiración
 @router.post("", response_model=ExpirationParamRead)
 def create_expiration(payload: ExpirationParamCreate, session: Session = Depends(get_session)):
     if payload.dias_duracion is None or payload.dias_duracion <= 0:
@@ -29,16 +31,19 @@ def create_expiration(payload: ExpirationParamCreate, session: Session = Depends
     session.refresh(e)
     return e
 
+# Lista todos los vencimientos
 @router.get("", response_model=List[ExpirationParamRead])
 def list_expirations(session: Session = Depends(get_session)):
     return list(session.exec(select(ExpirationParam)).all())
 
+# Obtiene vencimientos actualmente activos o recientes
 @router.get("/current", response_model=Optional[ExpirationParamRead])
 def get_current_expiration(session: Session = Depends(get_session)):
     stmt = select(ExpirationParam).order_by(desc(ExpirationParam.fecha_inicio_validez), desc(ExpirationParam.id)).limit(1)
     current = session.exec(stmt).first()
     return current  # puede ser None si no hay registros
 
+# Actualiza una expiración
 @router.put("/{exp_id}", response_model=ExpirationParamRead)
 def update_expiration(exp_id: int, payload: ExpirationParamUpdate, session: Session = Depends(get_session)):
     e = session.get(ExpirationParam, exp_id)
@@ -68,6 +73,7 @@ def update_expiration(exp_id: int, payload: ExpirationParamUpdate, session: Sess
     session.refresh(e)
     return e
 
+# Eliminar una expiración
 @router.delete("/{exp_id}")
 def delete_expiration(exp_id: int, session: Session = Depends(get_session)):
     e = session.get(ExpirationParam, exp_id)

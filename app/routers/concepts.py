@@ -7,6 +7,7 @@ from ..schemas import ConceptCreate, ConceptUpdate
 
 router = APIRouter(prefix="/concepts", tags=["Conceptos"])
 
+# Crear Concepto
 @router.post("", response_model=PointConcept)
 def create_concept(payload: ConceptCreate, session: Session = Depends(get_session)):
     c = PointConcept(**payload.dict())
@@ -15,10 +16,12 @@ def create_concept(payload: ConceptCreate, session: Session = Depends(get_sessio
     session.refresh(c)
     return c
 
+# Listar Concepto
 @router.get("", response_model=List[PointConcept])
 def list_concepts(session: Session = Depends(get_session)):
     return list(session.exec(select(PointConcept)).all())
 
+# Actualizar un concepto
 @router.put("/{concept_id}", response_model=PointConcept)
 def update_concept(concept_id: int, payload: ConceptUpdate, session: Session = Depends(get_session)):
     c = session.get(PointConcept, concept_id)
@@ -35,6 +38,7 @@ def update_concept(concept_id: int, payload: ConceptUpdate, session: Session = D
     session.refresh(c)
     return c
 
+#Eliminar un concepto
 @router.delete("/{concept_id}")
 def delete_concept(concept_id: int, session: Session = Depends(get_session)):
     c = session.get(PointConcept, concept_id)

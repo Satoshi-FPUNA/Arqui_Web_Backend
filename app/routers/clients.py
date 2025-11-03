@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from sqlmodel import Session, select
 from ..db import get_session
@@ -7,11 +8,17 @@ from ..schemas import ClientCreate, ClientUpdate
 
 router = APIRouter(prefix="/clients", tags=["Clientes"])
 
-# Crear cliente
-@router.post("", response_model=Client)
+# Crear cliente si es que no está duplicado
+@router.post("", response_model=Client, status_code=status.HTTP_201_CREATED)
 def create_client(payload: ClientCreate, session: Session = Depends(get_session)):
     c = Client(**payload.dict())
-    session.add(c); session.commit(); session.refresh(c)
+    session.add(c)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(409, "Cliente duplicado (documento o email ya existe)")
+    session.refresh(c)
     return c
 
 # Listar clientes
@@ -29,17 +36,16 @@ def find_clients(
     nro_documento: Optional[str] = None,
     email: Optional[str] = None,
     telefono: Optional[str] = None,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     stmt = select(Client)
-    results = session.exec(stmt).all()
     if nro_documento:
-        results = [c for c in results if c.nro_documento == nro_documento]
+        stmt = stmt.where(Client.nro_documento == nro_documento)
     if email:
-        results = [c for c in results if c.email.lower() == email.lower()]
+        stmt = stmt.where(Client.email.ilike(email))  # o == si tenés normalizado
     if telefono:
-        results = [c for c in results if c.telefono == telefono]
-    return results
+        stmt = stmt.where(Client.telefono == telefono)
+    return session.exec(stmt).all()
 
 # Obtener cliente por id
 @router.get("/{client_id}", response_model=Client)
@@ -59,9 +65,10 @@ def update_client(client_id: int, payload: ClientUpdate, session: Session = Depe
     return c
 
 # Eliminar cliente
-@router.delete("/{client_id}")
+@router.delete("/{client_id}", status_code=204)
 def delete_client(client_id: int, session: Session = Depends(get_session)):
     c = session.get(Client, client_id)
-    if not c: raise HTTPException(404, "Cliente no encontrado")
+    if not c:
+        raise HTTPException(404, "Cliente no encontrado")
     session.delete(c); session.commit()
-    return {"ok": True}
+    return
