@@ -22,7 +22,7 @@ def list_rules(session: Session = Depends(get_session)):
 def update_rule(rule_id: int, payload: RuleCreate, session: Session = Depends(get_session)):
     r = session.get(Rule, rule_id)
     if not r: raise HTTPException(404, "Regla no encontrada")
-    for k, v in payload.model_dump().items(): setattr(r, k, v)
+    for k, v in payload.dict().items(): setattr(r, k, v)
     session.add(r); session.commit(); session.refresh(r); return r
 
 # Eliminar una regla 

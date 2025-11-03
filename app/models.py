@@ -50,7 +50,7 @@ class PointsUseHeader(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     cliente_id: int = Field(foreign_key="client.id")
     puntaje_utilizado: int
-    fecha: datetime
+    fecha: date = Field(default_factory=date.today)  # ✅ siempre guarda la fecha actual
     concepto_id: int = Field(foreign_key="pointconcept.id")
 
 class PointsUseDetail(SQLModel, table=True):
