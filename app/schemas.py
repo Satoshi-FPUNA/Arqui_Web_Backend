@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr
 from datetime import date, timedelta
 from typing import Optional, List
 
-# 🔹 CLIENTES
+# CLIENTES
 class ClientCreate(BaseModel):
     nombre: str
     apellido: str
@@ -18,14 +18,14 @@ class ClientUpdate(BaseModel):
     email: Optional[EmailStr] = None
 
 
-# 🔹 REGLAS DE PUNTOS
+# REGLAS DE PUNTOS
 class RuleCreate(BaseModel):
     limite_inferior: Optional[int] = None
     limite_superior: Optional[int] = None
     equivalencia_monto: int
 
 
-# 🔹 VENCIMIENTOS
+# VENCIMIENTOS
 class ExpirationParamCreate(BaseModel):
     fecha_inicio_validez: date
     dias_duracion: int
@@ -43,7 +43,7 @@ class ExpirationParamRead(BaseModel):
     dias_duracion: int
 
 
-# 🔹 CONCEPTOS (Premios)
+# CONCEPTOS (Premios)
 class ConceptCreate(BaseModel):
     descripcion: str
     puntos_requeridos: int
@@ -53,13 +53,20 @@ class ConceptUpdate(BaseModel):
     puntos_requeridos: Optional[int] = None
 
 
-# 🔹 BOLSA DE PUNTOS
+# BOLSA DE PUNTOS
 class AssignPointsRequest(BaseModel):
     cliente_id: int
     monto_operacion: int
 
+class PointsUseHeaderRead(BaseModel):
+    id: int
+    cliente_id: int
+    concepto_id: int
+    puntaje_utilizado: int
+    fecha: date
 
-# 🔹 CANJE DE PUNTOS
+
+# CANJE DE PUNTOS
 class UsePointsRequest(BaseModel):
     cliente_id: int
     concepto_id: int

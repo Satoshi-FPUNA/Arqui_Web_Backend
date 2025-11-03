@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from sqlmodel import Session, select
 from pydantic import EmailStr
-from typing import List
+from typing import List, Optional
 from ..db import get_session
 from ..models import (
     Client,
@@ -12,7 +12,7 @@ from ..models import (
     PointsUseHeader,
     PointsUseDetail,
 )
-from ..schemas import UsePointsRequest
+from ..schemas import UsePointsRequest, PointsUseHeaderRead
 
 import os
 
@@ -48,7 +48,7 @@ async def send_comprobante_email(cliente: Client, concepto: PointConcept, puntos
 
     message = MessageSchema(
         subject=subject,
-        recipients=[EmailStr(cliente.email)],
+        recipients=[cliente.email],
         body=body,
         subtype="html"
     )
@@ -153,3 +153,12 @@ def get_use_details(cabecera_id: int, session: Session = Depends(get_session)):
             .order_by(PointsUseDetail.id.asc())
         ).all()
     )
+
+
+# Listar Canje
+@router.get("", response_model=List[PointsUseHeader])
+def list_pointsuse(cliente_id: Optional[int] = None, session: Session = Depends(get_session)):
+    q = select(PointsUseHeader).order_by(PointsUseHeader.fecha.desc())
+    if cliente_id is not None:
+        q = q.where(PointsUseHeader.cliente_id == cliente_id)
+    return list(session.exec(q).all())

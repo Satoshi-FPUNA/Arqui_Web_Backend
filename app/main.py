@@ -8,11 +8,11 @@ app = FastAPI(title="Galletita Cafetería")
 @app.on_event("startup")
 def startup():
     init_db()
-    start_scheduler(app)   # ← inicia tarea diaria
+    start_scheduler(app)   # inicia tarea diaria
 
 @app.on_event("shutdown")
 def shutdown():
-    shutdown_scheduler(app)  # ← apaga scheduler limpio
+    shutdown_scheduler(app)  # apaga scheduler limpio
 
 app.include_router(clients.router)
 app.include_router(rules.router)
