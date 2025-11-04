@@ -57,7 +57,7 @@ def _puntos_por_monto(session: Session, monto: int) -> int:
             if r.limite_inferior <= monto <= r.limite_superior:
                 return monto // r.equivalencia_monto
 
-    # si no matcheó rangos, usa la primera equivalencia general
+    # si no coinciden rangos, usa la primera equivalencia general
     regla_general = next((r for r in reglas if r.limite_inferior is None and r.limite_superior is None), None)
     if not regla_general:
         # o en última instancia usa la primera regla

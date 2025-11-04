@@ -28,7 +28,6 @@ def update_concept(concept_id: int, payload: ConceptUpdate, session: Session = D
     if not c:
         raise HTTPException(status_code=404, detail="Concepto no encontrado")
 
-    # Pydantic v1: dict(exclude_unset=True)
     data = payload.dict(exclude_unset=True)
     for k, v in data.items():
         setattr(c, k, v)
