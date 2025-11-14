@@ -77,6 +77,8 @@ class AssignPointsResponse(BaseModel):
     puntos_asignados: int
     fecha_caducidad: date
     saldo_total: int
+    level_id: Optional[int] = None
+    level_name: Optional[str] = None
 
 # NIVELES DE FIDELIZACIÓN
 class LoyaltyLevelBase(BaseModel):

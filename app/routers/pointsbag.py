@@ -3,8 +3,8 @@ from datetime import date, timedelta
 from typing import List, Optional
 from sqlmodel import Session, select
 from ..db import get_session
-from ..models import PointsBag, Client, Rule, ExpirationParam
-from ..schemas import AssignPointsRequest
+from ..models import PointsBag, Client, Rule, ExpirationParam, LoyaltyLevel
+from ..schemas import AssignPointsRequest, AssignPointsResponse
 from ..core.mailer import send_points_assigned_email, PointsAssignedEmail
 from ..schemas import AssignPointsResponse
 
@@ -106,27 +106,38 @@ async def assign_points(
     ).all()
     saldo_sum = sum(b.saldo_puntos for b in vigentes)
 
-    # dispara email en background
-    if cliente.email:
-        background.add_task(
-            send_points_assigned_email,
-            PointsAssignedEmail(
-                to=cliente.email,
-                nombre=f"{cliente.nombre} {cliente.apellido}".strip(),
-                puntos_asignados=puntos,
-                saldo_puntos=saldo_sum,
-                fecha_caducidad=str(fecha_cad),
-                monto_operacion=payload.monto_operacion,
-            ),
-        )
+    # calcular nivel de fidelización según saldo_sum
+    stmt = (
+        select(LoyaltyLevel)
+        .where(LoyaltyLevel.min_points <= saldo_sum)
+        .order_by(LoyaltyLevel.min_points.desc())
+    )
+    level = session.exec(stmt).first()
 
-    return {
-        "ok": True,
-        "cliente_id": payload.cliente_id,
-        "puntos_asignados": puntos,
-        "fecha_caducidad": str(fecha_cad),
-        "saldo_total": saldo_sum,
-    }
+    # dispara email en background
+    # if cliente.email:
+    #     background.add_task(
+    #         send_points_assigned_email,
+    #         PointsAssignedEmail(
+    #             to=cliente.email,
+    #             nombre=f"{cliente.nombre} {cliente.apellido}".strip(),
+    #             puntos_asignados=puntos,
+    #             saldo_puntos=saldo_sum,
+    #             fecha_caducidad=str(fecha_cad),
+    #             monto_operacion=payload.monto_operacion,
+    #         ),
+    #     )
+
+    # devolver respuesta incluyendo nivel
+    return AssignPointsResponse(
+        ok=True,
+        cliente_id=payload.cliente_id,
+        puntos_asignados=puntos,
+        fecha_caducidad=fecha_cad,     # es date, el schema también
+        saldo_total=saldo_sum,
+        level_id=level.id if level else None,
+        level_name=level.name if level else None,
+    )
 
 # listar las bolsas de puntos de cada cliente
 @router.get("", response_model=List[PointsBag])
