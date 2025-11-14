@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import List, Optional
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, UniqueConstraint
 from pydantic import BaseModel
 
 class Client(SQLModel, table=True):
@@ -73,3 +73,10 @@ class PointsBagCreate(BaseModel):
     cliente_id: int
     puntos_asignados: int
     monto_operacion: int
+
+class LoyaltyLevel(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    min_points: int = Field(ge=0)
+    priority: int = 0
+    benefits: Optional[str] = None

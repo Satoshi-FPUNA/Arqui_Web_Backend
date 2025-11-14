@@ -2,8 +2,10 @@ from fastapi import FastAPI
 from .db import init_db
 from .routers import clients, rules, expirations, concepts, pointsbag, pointsuse
 from .core.scheduler import start_scheduler, shutdown_scheduler
+from app.routers import loyalty_levels
 
 app = FastAPI(title="Galletita Cafetería")
+
 
 @app.on_event("startup")
 def startup():
@@ -20,3 +22,4 @@ app.include_router(expirations.router)
 app.include_router(concepts.router)
 app.include_router(pointsbag.router)
 app.include_router(pointsuse.router)
+app.include_router(loyalty_levels.router)

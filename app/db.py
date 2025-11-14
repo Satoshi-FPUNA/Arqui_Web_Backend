@@ -1,4 +1,5 @@
 from sqlmodel import SQLModel, create_engine, Session
+from app import models
 import os
 from dotenv import load_dotenv
 

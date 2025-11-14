@@ -77,3 +77,28 @@ class AssignPointsResponse(BaseModel):
     puntos_asignados: int
     fecha_caducidad: date
     saldo_total: int
+
+# NIVELES DE FIDELIZACIÓN
+class LoyaltyLevelBase(BaseModel):
+    name: str
+    min_points: int
+    priority: int = 0 
+    benefits: Optional[str] = None 
+
+class LoyaltyLevelCreate(LoyaltyLevelBase):
+    pass
+
+class LoyaltyLevelUpdate(BaseModel):
+    name: Optional[str] = None
+    min_points: Optional[int] = None
+    priority: Optional[int] = None
+    benefits: Optional[str] = None
+
+class LoyaltyLevelRead(LoyaltyLevelBase):
+    id: int
+
+class ClientLevelRead(BaseModel):
+    client_id: int
+    total_points: int
+    level_id: Optional[int]
+    level_name: Optional[str]
