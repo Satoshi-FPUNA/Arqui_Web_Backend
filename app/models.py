@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import List, Optional
+from uuid import uuid4
 from sqlmodel import SQLModel, Field, Relationship, UniqueConstraint
 from pydantic import BaseModel
 
@@ -13,6 +14,16 @@ class Client(SQLModel, table=True):
     email: str
     telefono: str
     fecha_nacimiento: date
+
+    # Sistema de referidos
+    referral_code: str = Field(
+        default_factory=lambda: uuid4().hex[:8],  # código corto. Ej: a1b2c3d4
+        index=True
+    )
+    referred_by_id: Optional[int] = Field(
+        default=None,
+        foreign_key="client.id"
+    )
 
 class Rule(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

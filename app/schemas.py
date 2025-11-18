@@ -12,11 +12,25 @@ class ClientCreate(BaseModel):
     email: EmailStr
     telefono: str
     fecha_nacimiento: date
+    codigo_referidor: Optional[str] = None   # Referidos
 
 class ClientUpdate(BaseModel):
     telefono: Optional[str] = None
     email: Optional[EmailStr] = None
 
+class ClientWithPoints(BaseModel):
+    id: int
+    nombre: str
+    apellido: str
+    nro_documento: str
+    tipo_documento: str
+    nacionalidad: str
+    email: str
+    telefono: str
+    fecha_nacimiento: date
+    referral_code: str
+    referred_by_id: Optional[int] = None
+    puntos_totales: int
 
 # REGLAS DE PUNTOS
 class RuleCreate(BaseModel):
