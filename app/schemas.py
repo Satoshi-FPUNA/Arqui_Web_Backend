@@ -31,6 +31,8 @@ class ClientWithPoints(BaseModel):
     referral_code: str
     referred_by_id: Optional[int] = None
     puntos_totales: int
+    level_id: Optional[int] = None
+    level_name: Optional[str] = None
 
 # REGLAS DE PUNTOS
 class RuleCreate(BaseModel):
