@@ -91,3 +91,10 @@ class LoyaltyLevel(SQLModel, table=True):
     min_points: int = Field(ge=0)
     priority: int = 0
     benefits: Optional[str] = None
+
+class Survey(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cliente_id: int = Field(foreign_key="client.id")
+    fecha: datetime = Field(default_factory=datetime.utcnow)
+    puntuacion: int                    # Rango del 1 a 5
+    comentario: Optional[str] = None   # opcional
