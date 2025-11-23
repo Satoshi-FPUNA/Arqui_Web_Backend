@@ -3,6 +3,8 @@ from typing import List, Optional
 from uuid import uuid4
 from sqlmodel import SQLModel, Field, Relationship, UniqueConstraint
 from pydantic import BaseModel
+from typing import Optional
+from sqlmodel import SQLModel, Field
 
 class Client(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -91,3 +93,9 @@ class LoyaltyLevel(SQLModel, table=True):
     min_points: int = Field(ge=0)
     priority: int = 0
     benefits: Optional[str] = None
+class Product(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    points_required: int
+    description: Optional[str] = None
+    is_active: bool = True
