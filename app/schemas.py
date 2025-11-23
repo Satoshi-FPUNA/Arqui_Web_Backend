@@ -132,7 +132,6 @@ class ClientLevelRead(BaseModel):
     total_points: int
     level_id: Optional[int]
     level_name: Optional[str]
-<<<<<<< HEAD
 class ProductCreate(BaseModel):
     name: str
     points_required: int
@@ -158,7 +157,6 @@ class RedeemResponse(BaseModel):
     product_name: str
     points_used: int
     remaining_points: int
-=======
 
 # ENCUESTAS DE SATISFACCIÓN
 class SurveyCreate(BaseModel):
@@ -182,4 +180,3 @@ class SurveyWithClient(BaseModel):
 
     class Config:
         orm_mode = True
->>>>>>> 74b495518b6730de87378076997f3c8ef52e34eb
