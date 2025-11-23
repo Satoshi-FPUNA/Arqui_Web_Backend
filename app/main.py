@@ -6,6 +6,7 @@ from app.routers import loyalty_levels
 from app.routers import products
 from app.routers import redeem
 
+from .routers import surveys
 
 app = FastAPI(title="Galletita Cafetería")
 
@@ -28,3 +29,4 @@ app.include_router(pointsuse.router)
 app.include_router(loyalty_levels.router)
 app.include_router(products.router)
 app.include_router(redeem.router)
+app.include_router(surveys.router)

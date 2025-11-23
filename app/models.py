@@ -99,3 +99,10 @@ class Product(SQLModel, table=True):
     points_required: int
     description: Optional[str] = None
     is_active: bool = True
+
+class Survey(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cliente_id: int = Field(foreign_key="client.id")
+    fecha: datetime = Field(default_factory=datetime.utcnow)
+    puntuacion: int                    # Rango del 1 a 5
+    comentario: Optional[str] = None   # opcional
