@@ -1,6 +1,8 @@
 from pydantic import BaseModel, EmailStr
 from datetime import date, timedelta, datetime
 from typing import Optional, List
+from typing import Optional
+from pydantic import BaseModel
 
 # CLIENTES
 class ClientCreate(BaseModel):
@@ -130,6 +132,31 @@ class ClientLevelRead(BaseModel):
     total_points: int
     level_id: Optional[int]
     level_name: Optional[str]
+class ProductCreate(BaseModel):
+    name: str
+    points_required: int
+    description: Optional[str] = None
+
+class ProductRead(BaseModel):
+    id: int
+    name: str
+    points_required: int
+    description: Optional[str] = None
+    is_active: bool
+
+    class Config:
+        orm_mode = True
+        
+class RedeemRequest(BaseModel):
+    client_id: int
+    product_id: int
+
+
+class RedeemResponse(BaseModel):
+    message: str
+    product_name: str
+    points_used: int
+    remaining_points: int
 
 # ENCUESTAS DE SATISFACCIÓN
 class SurveyCreate(BaseModel):
