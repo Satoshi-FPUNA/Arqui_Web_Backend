@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listado de Clientes</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        #mensaje {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: #888;
+        }
+
+        .clientes-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .cliente-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .cliente-card h3 {
+            margin: 0 0 5px;
+            color: #444;
+        }
+
+        .cliente-card p {
+            margin: 3px 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Listado de Clientes</h1>
+
+    <div id="mensaje"></div>
+    <div class="clientes-container" id="clientes"></div>
+
+    <script>
+        async function cargarClientes() {
+            try {
+                const response = await fetch("http://127.0.0.1:8000/clients");
+                const data = await response.json();
+
+                const contenedor = document.getElementById("clientes");
+                const mensaje = document.getElementById("mensaje");
+
+                // Si viene vacío
+                if (data.length === 0) {
+                    mensaje.textContent = "Aún no hay clientes registrados";
+                    return;
+                }
+
+                // Si viene con datos, ocultar mensaje
+                mensaje.textContent = "";
+
+                data.forEach(cliente => {
+                    const card = document.createElement("div");
+                    card.className = "cliente-card";
+
+                    card.innerHTML = `
+                        <h3>${cliente.nombre} ${cliente.apellido}</h3>
+                        <p><strong>Documento:</strong> ${cliente.nro_documento}</p>
+                        <p><strong>Email:</strong> ${cliente.email}</p>
+                        <p><strong>Teléfono:</strong> ${cliente.telefono}</p>
+                        <p><strong>Nacionalidad:</strong> ${cliente.nacionalidad}</p>
+                    `;
+
+                    contenedor.appendChild(card);
+                });
+
+            } catch (error) {
+                document.getElementById("mensaje").textContent = 
+                    "Error al cargar los clientes";
+                console.error(error);
+            }
+        }
+
+        cargarClientes();
+    </script>
+
+</body>
+</html>

@@ -42,7 +42,6 @@ def redeem_product(data: RedeemRequest):
             raise HTTPException(status_code=400, detail="Puntos insuficientes")
 
         # 3. Crear cabecera de uso
-        # concepto -> vale de consumición (puede ser otro, pero usamos 1 o fijo)
         concepto = session.exec(select(PointConcept)).first()
         if not concepto:
             raise HTTPException(status_code=500, detail="Debe existir al menos un concepto")

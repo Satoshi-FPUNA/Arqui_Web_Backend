@@ -7,6 +7,8 @@ from app.routers import products
 from app.routers import redeem
 
 from .routers import surveys
+from app.routers import integration
+
 
 app = FastAPI(title="Galletita Cafetería")
 
@@ -32,3 +34,4 @@ app.include_router(dashboard.router)
 app.include_router(products.router)
 app.include_router(redeem.router)
 app.include_router(surveys.router)
+app.include_router(integration.router)
