@@ -10,3 +10,4 @@ __pycache__/
 .cache/
 data.db
 *.db
+data_local.db
