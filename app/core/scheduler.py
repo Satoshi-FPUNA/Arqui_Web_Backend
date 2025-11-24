@@ -17,6 +17,7 @@ ALERT_DAYS_BEFORE = int(os.getenv("ALERT_DAYS_BEFORE", "3"))
 ALERT_HOUR = int(os.getenv("ALERT_HOUR", "9"))
 ALERT_MINUTE = int(os.getenv("ALERT_MINUTE", "0"))
 
+#Avisa el vencimiento de puntos mediante mails
 async def _job_points_expiring():
     """Busca bolsas que vencen en los próximos N días y envía emails agrupados por cliente."""
     today = date.today()
@@ -61,6 +62,29 @@ async def _job_points_expiring():
                 items=items,
             )
 
+#Explira Bolsas Vencidas
+async def _job_expire_points():
+    """Marca como vencidas las bolsas cuya fecha ya pasó."""
+    today = date.today()
+
+    with Session(engine) as session:
+        bolsas_vencidas = session.exec(
+            select(PointsBag)
+            .where(
+                PointsBag.fecha_caducidad < today,
+                PointsBag.saldo_puntos > 0
+            )
+        ).all()
+
+        for b in bolsas_vencidas:
+            b.saldo_puntos = 0     # puntos ya no disponibles
+            session.add(b)
+
+        session.commit()
+
+        print(f"[CRON] Bolsas vencidas actualizadas: {len(bolsas_vencidas)}")
+
+
 def start_scheduler(app):
     """Arranca el scheduler y lo guarda en app.state."""
     scheduler = AsyncIOScheduler()
@@ -70,6 +94,14 @@ def start_scheduler(app):
         CronTrigger(hour=ALERT_HOUR, minute=ALERT_MINUTE),
         id="points_expiring_daily",
         replace_existing=True,
+    )
+    # corre cada 12 horas (se puede ajustar a 1 hora, 3 horas, etc.)
+    scheduler.add_job(
+        _job_expire_points,
+        "interval",
+        hours=12,
+        id="expire_points_interval",
+        replace_existing=True
     )
     scheduler.start()
     app.state.scheduler = scheduler

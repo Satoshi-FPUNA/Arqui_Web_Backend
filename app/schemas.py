@@ -65,7 +65,7 @@ class ExpirationParamUpdate(BaseModel):
 class ExpirationParamRead(BaseModel):
     id: int
     fecha_inicio_validez: date
-    fecha_fin_validez: date
+    #fecha_fin_validez: date
     dias_duracion: int
 
 
